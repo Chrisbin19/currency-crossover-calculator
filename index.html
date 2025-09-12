@@ -7,13 +7,14 @@
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- NEW: Add the Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <main class="app-container">
-        <h1>Currency Crossover Calculator 🌍</h1>
+    <div class="app-container">
+        <h1>Currency Crossover Calculator 💰</h1>
         
-        <!-- These are the new controls for Phase 2 -->
         <div class="controls-container">
             <div class="toggle-switch">
                 <label>Classic</label>
@@ -58,11 +59,14 @@
             <button class="btn btn-operator" data-action="equals">=</button>
         </div>
 
-        <!-- This is where the suggestion will appear in Phase 3 -->
-        <div class="suggestion-box-container">
-            <div id="suggestion-box" class="suggestion-box"></div>
+        <div class="suggestion-box"></div>
+
+        <!-- NEW: Add the container and canvas for our chart -->
+        <div class="chart-container" style="display: none;">
+            <canvas id="historyChart"></canvas>
         </div>
-    </main>
+
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
