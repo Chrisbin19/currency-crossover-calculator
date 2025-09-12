@@ -6,18 +6,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const currencySelectors = document.querySelector('.currency-selectors');
     const fromCurrencySelect = document.querySelector('#from-currency');
     const toCurrencySelect = document.querySelector('#to-currency');
-    const chartContainer = document.querySelector('.chart-container'); // NEW: Chart container
-    const chartCanvas = document.getElementById('historyChart'); // NEW: Chart canvas
+    const chartContainer = document.querySelector('.chart-container');
+    const chartCanvas = document.getElementById('historyChart');
+    const suggestionBox = document.querySelector('.suggestion-box');
 
     // --- State Variables ---
-    const apiKey = '56e27194b721e951d2d615b0'; // <-- IMPORTANT: PASTE YOUR ExchangeRate-API KEY HERE
+    const apiKey = '56e27194b721e951d2d615b0'; // <-- PASTE YOUR ExchangeRate-API KEY
+    const alphaVantageApiKey = '4S99D6GXOWTPAJ5V'; // <-- NEW: PASTE YOUR Alpha Vantage KEY HERE
     let currentOperand = '';
     let previousOperand = '';
     let operation = undefined;
     let isCurrencyMode = false;
     let rates = {};
     let calculationCompleted = false;
-    let historyChartInstance; // NEW: To hold the chart instance
+    let historyChartInstance;
 
     // --- API & Data Functions ---
     const getRates = async () => {
@@ -57,15 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
         toCurrencySelect.value = "INR";
     };
 
-    // --- NEW: Function to fetch historical data and display chart ---
     const displayHistoryChart = async (from, to) => {
-        chartContainer.style.display = 'block'; // Show the container
-
-        // 1. Prepare dates for the API call (last 30 days)
+        chartContainer.style.display = 'block';
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
 
-        // 2. Fetch data from Frankfurter API (no key needed)
         try {
             const response = await fetch(`https://api.frankfurter.app/${startDate}..${endDate}?from=${from}&to=${to}`);
             const data = await response.json();
@@ -73,12 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const labels = Object.keys(data.rates).sort();
             const chartData = labels.map(label => data.rates[label][to]);
 
-            // 3. Destroy old chart if it exists to prevent overlap
-            if (historyChartInstance) {
-                historyChartInstance.destroy();
-            }
+            if (historyChartInstance) { historyChartInstance.destroy(); }
             
-            // 4. Create new chart with Chart.js
             historyChartInstance = new Chart(chartCanvas, {
                 type: 'line',
                 data: {
@@ -89,35 +83,76 @@ document.addEventListener('DOMContentLoaded', () => {
                         borderColor: 'rgba(54, 162, 235, 1)',
                         backgroundColor: 'rgba(54, 162, 235, 0.2)',
                         borderWidth: 2,
-                        tension: 0.4, // Makes the line smoother
-                        pointRadius: 0, // Hides the dots on the line
+                        tension: 0.4,
+                        pointRadius: 0,
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: {
-                        legend: {
-                            labels: { color: '#FFF' }
-                        }
-                    },
+                    plugins: { legend: { labels: { color: '#FFF' } } },
                     scales: {
-                        y: {
-                            ticks: { color: '#FFF' },
-                            grid: { color: 'rgba(255, 255, 255, 0.2)' }
-                        },
-                        x: {
-                            ticks: { color: '#FFF' },
-                            grid: { color: 'rgba(255, 255, 255, 0.2)' }
-                        }
+                        y: { ticks: { color: '#FFF' }, grid: { color: 'rgba(255, 255, 255, 0.2)' } },
+                        x: { ticks: { color: '#FFF' }, grid: { color: 'rgba(255, 255, 255, 0.2)' } }
                     }
                 }
             });
-
         } catch (error) {
             console.error("Chart data fetch error:", error);
         }
     };
 
+    const showInvestmentSuggestions = async (amountInINR) => {
+        suggestionBox.innerText = 'Finding investment ideas...';
+        
+        try {
+            // --- FINAL FIX: Using the stable Alpha Vantage API ---
+            const stockSymbols = ["RELIANCE.BSE", "TCS.BSE", "HDFCBANK.BSE", "INFY.BSE", "TATAMOTORS.BSE", "SBIN.BSE"];
+            
+            // Create an array of fetch promises, one for each stock
+            const promises = stockSymbols.map(symbol =>
+                fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${alphaVantageApiKey}`)
+                    .then(res => res.json())
+            );
+
+            // Wait for all API calls to complete
+            const results = await Promise.all(promises);
+
+            const stockData = results
+                .map(result => {
+                    const quote = result['Global Quote'];
+                    // Check if the response is valid and contains the price
+                    if (quote && quote['05. price']) {
+                        return {
+                            symbol: quote['01. symbol'].replace(".BSE", ""),
+                            price: parseFloat(quote['05. price'])
+                        };
+                    }
+                    return null; // Return null for failed or rate-limited requests
+                })
+                .filter(Boolean); // Filter out any null results
+
+            if (stockData.length === 0) {
+                suggestionBox.innerText = 'Could not fetch investment ideas right now. (API limit may be reached)';
+                return;
+            }
+
+            const affordableStocks = stockData.filter(stock => stock.price < amountInINR);
+
+            if (affordableStocks.length > 0) {
+                const suggestions = affordableStocks
+                    .slice(0, 3)
+                    .map(stock => `${stock.symbol} (₹${stock.price.toFixed(2)})`)
+                    .join(', ');
+                suggestionBox.innerText = `With ₹${amountInINR.toFixed(2)}, you could invest in: ${suggestions}.`;
+            } else {
+                suggestionBox.innerText = 'This amount could be a great start for a mutual fund!';
+            }
+
+        } catch (error) {
+            console.error("Investment data fetch error:", error);
+            suggestionBox.innerText = 'Could not fetch investment ideas.';
+        }
+    };
 
     // --- Calculator Logic ---
     const calculate = () => {
@@ -136,10 +171,16 @@ document.addEventListener('DOMContentLoaded', () => {
             currentOperand = result.toFixed(2);
             calculationCompleted = true;
 
-            // --- MODIFIED: Trigger the chart display ---
             displayHistoryChart(from, to);
 
+            if (to === 'INR') {
+                showInvestmentSuggestions(result);
+            } else {
+                suggestionBox.innerText = '';
+            }
+
         } else {
+            // ... (Classic mode logic remains unchanged)
             const prev = parseFloat(previousOperand);
             const current = parseFloat(currentOperand);
             if (isNaN(prev) || isNaN(current)) return;
@@ -152,6 +193,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 default: return;
             }
             currentOperand = result.toString();
+            // --- FIX: Mark that a classic calculation has completed ---
+            calculationCompleted = true;
         }
         operation = undefined;
         previousOperand = '';
@@ -173,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
         previousOperand = '';
         operation = undefined;
         calculationCompleted = false;
-        // --- MODIFIED: Hide and destroy the chart on clear ---
+        suggestionBox.innerText = '';
         chartContainer.style.display = 'none';
         if (historyChartInstance) {
             historyChartInstance.destroy();
@@ -196,25 +239,43 @@ document.addEventListener('DOMContentLoaded', () => {
         const action = button.dataset.action;
         const buttonContent = button.innerText;
 
-        if (calculationCompleted) {
-            clear();
-        }
+        // This was too aggressive and has been removed. The logic is now handled below.
+        // if (calculationCompleted) {
+        //     clear();
+        // }
 
         if (action === 'number') {
+            // --- FIX: If a calculation was just completed, start a new number ---
+            if (calculationCompleted) {
+                currentOperand = '';
+                calculationCompleted = false;
+            }
             if (currentOperand === '0') currentOperand = '';
             currentOperand += buttonContent;
         }
         if (action === 'decimal') {
+             // --- FIX: If a calculation was just completed, start a new number ---
+            if (calculationCompleted) {
+                currentOperand = '0';
+                calculationCompleted = false;
+            }
             if (currentOperand.includes('.')) return;
             currentOperand += '.';
         }
-        if (action === 'operator') { chooseOperation(buttonContent); }
+        if (action === 'operator') { 
+            // --- FIX: Allow chained operations after a calculation ---
+            calculationCompleted = false;
+            chooseOperation(buttonContent); 
+        }
         if (action === 'clear') { clear(); }
         if (action === 'delete') {
             currentOperand = currentOperand.slice(0, -1);
         }
         if (action === 'equals') {
-            calculate();
+            // Prevent running calculate again if already completed
+            if (!calculationCompleted) {
+                 calculate();
+            }
         }
         updateDisplay();
     });
@@ -237,4 +298,5 @@ document.addEventListener('DOMContentLoaded', () => {
     getRates();
     updateDisplay();
 });
+
 
