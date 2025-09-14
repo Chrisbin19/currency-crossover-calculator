@@ -40,8 +40,17 @@ Clone the repository and navigate into the project directory:
 git clone [https://github.com/Chrisbin1s/currency-crossover-calculator.git](https://github.com/Chrisbin1s/currency-crossover-calculator.git)
 cd currency-crossover-calculator
 ```
+Install the necessary dependencies:
 
-Open the **index.html** file in your favorite web browser.
+```bash
+npm install
+```
+Start the professional development server:
+
+
+```bash
+npm run dev
+```
 
 **Important: To enable the currency and investment features, you must get your own free API keys and replace the placeholders in the script.js file:**
 
